@@ -4,18 +4,19 @@ from config import DB_PATH
 
 class PayoutModal(discord.ui.Modal, title="Créer un payout"):
 
-    def __init__(self, payout_name: str):
+    def __init__(self, payout_name: str, caller_name: str):
         super().__init__()
         self.payout_name = payout_name
+        self.caller_name = caller_name
 
-        self.caller = discord.ui.TextInput(label="Caller", placeholder="Nom du caller")
+        # Champs du formulaire (max 5)
         self.total = discord.ui.TextInput(label="Prix total (€)", placeholder="Ex: 120")
         self.repairs = discord.ui.TextInput(label="Prix réparations (€)", placeholder="Ex: 20")
         self.members = discord.ui.TextInput(label="Membres (séparés par des virgules)", placeholder="Ex: @Nico,@Clara")
         self.guild_member = discord.ui.TextInput(label="Membre guilde ? (oui/non)", placeholder="oui ou non")
         self.guild_percent = discord.ui.TextInput(label="% pour la guilde", placeholder="Ex: 10", required=False)
 
-        self.add_item(self.caller)
+        # Ajout des champs au modal
         self.add_item(self.total)
         self.add_item(self.repairs)
         self.add_item(self.members)
@@ -42,12 +43,13 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
             conn = sqlite3.connect(DB_PATH)
             c = conn.cursor()
 
+            # Enregistrement du payout
             c.execute('''
                 INSERT INTO payouts (name, caller, total, repairs, guild_percent, guild_cut, net, per_member)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 self.payout_name,
-                self.caller.value,
+                self.caller_name,
                 total,
                 repairs,
                 guild_pct,
@@ -56,6 +58,7 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
                 per_member
             ))
 
+            # Enregistrement des membres
             for name in members_raw:
                 user = discord.utils.get(interaction.guild.members, name=name)
                 if user:
@@ -69,17 +72,19 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
             conn.commit()
             conn.close()
 
+            # Confirmation privée
             await interaction.response.send_message(
-                f"✅ Payout **{self.payout_name}** créé par **{self.caller.value}**.\n"
+                f"✅ Payout **{self.payout_name}** créé par **{self.caller_name}**.\n"
                 f"Total: {total}€, Réparations: {repairs}€, Net: {net:.2f}€\n"
                 f"Guilde ({guild_pct}%): {guild_cut:.2f}€ → À répartir : {to_split:.2f}€\n"
                 f"Part par membre ({member_count}) : **{per_member:.2f}€**",
                 ephemeral=True
             )
 
+            # Annonce publique
             await interaction.channel.send(
                 f"🎉 Le payout **{self.payout_name}** est terminé !\n"
-                f"• Caller : {self.caller.value}\n"
+                f"• Caller : {self.caller_name}\n"
                 f"• Total : {total}€, Réparations : {repairs}€, Guilde : {guild_cut:.2f}€\n"
                 f"• À répartir : {to_split:.2f}€ entre {member_count} membres → **{per_member:.2f}€** chacun\n"
                 f"✅ Les balances des membres ont été mises à jour."
