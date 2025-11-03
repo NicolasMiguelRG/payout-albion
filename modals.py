@@ -1,6 +1,5 @@
 import discord
 import sqlite3
-from config import DB_PATH
 
 class PayoutModal(discord.ui.Modal, title="Créer un payout"):
 
@@ -9,86 +8,86 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
         self.payout_name = payout_name
         self.caller_name = caller_name
 
-        # Champs du formulaire (max 5)
-        self.total = discord.ui.TextInput(label="Prix total (€)", placeholder="Ex: 120")
-        self.repairs = discord.ui.TextInput(label="Prix réparations (€)", placeholder="Ex: 20")
-        self.members = discord.ui.TextInput(label="Membres (séparés par des virgules)", placeholder="Ex: @Nico,@Clara")
-        self.guild_member = discord.ui.TextInput(label="Membre guilde ? (oui/non)", placeholder="oui ou non")
-        self.guild_percent = discord.ui.TextInput(label="% pour la guilde", placeholder="Ex: 10", required=False)
+        self.total = discord.ui.TextInput(label="Prix total", placeholder="Ex: 1 000 000", required=True)
+        self.repairs = discord.ui.TextInput(label="Réparations", placeholder="Ex: 200 000", required=True)
+        self.members = discord.ui.TextInput(label="Membres", placeholder="Ex: 5", required=True)
+        self.guild = discord.ui.TextInput(label="Membre guilde ? (oui/non)", placeholder="oui", required=True)
+        self.percent = discord.ui.TextInput(label="% pour la guilde", placeholder="Ex: 10", required=True)
 
-        # Ajout des champs au modal
         self.add_item(self.total)
         self.add_item(self.repairs)
         self.add_item(self.members)
-        self.add_item(self.guild_member)
-        self.add_item(self.guild_percent)
+        self.add_item(self.guild)
+        self.add_item(self.percent)
 
     async def on_submit(self, interaction: discord.Interaction):
         try:
-            total = float(self.total.value)
-            repairs = float(self.repairs.value)
-            guild_pct = float(self.guild_percent.value) if self.guild_percent.value else 0
-            members_raw = [m.strip().replace("@", "") for m in self.members.value.split(",") if m.strip()]
-            member_count = len(members_raw)
+            total = int(self.total.value.replace(" ", ""))
+            repairs = int(self.repairs.value.replace(" ", ""))
+            members = int(self.members.value)
+            is_guild = self.guild.value.lower() == "oui"
+            percent = int(self.percent.value)
 
-            if member_count == 0:
-                await interaction.response.send_message("❌ Aucun membre valide renseigné.", ephemeral=True)
+            guild_cut = int((total - repairs) * percent / 100) if is_guild else 0
+            net = total - repairs - guild_cut
+            per_member = int(net / members)
+
+            # ✅ Connexion sécurisée à SQLite
+            try:
+                with sqlite3.connect("payouts.db") as conn:
+                    c = conn.cursor()
+                    c.execute('''
+                        INSERT INTO payouts (name, caller, total, repairs, guild_percent, guild_cut, net, per_member)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        self.payout_name,
+                        self.caller_name,
+                        total,
+                        repairs,
+                        percent,
+                        guild_cut,
+                        net,
+                        per_member
+                    ))
+                    conn.commit()
+            except sqlite3.IntegrityError as e:
+                msg = f"❌ Erreur : le nom '{self.payout_name}' existe déjà."
+                if interaction.response.is_done():
+                    await interaction.followup.send(msg, ephemeral=True)
+                else:
+                    await interaction.response.send_message(msg, ephemeral=True)
+                return
+            except sqlite3.OperationalError as e:
+                msg = f"❌ Erreur base de données : {e}"
+                if interaction.response.is_done():
+                    await interaction.followup.send(msg, ephemeral=True)
+                else:
+                    await interaction.response.send_message(msg, ephemeral=True)
                 return
 
-            net = total - repairs
-            guild_cut = net * (guild_pct / 100)
-            to_split = net - guild_cut
-            per_member = to_split / member_count
+            # ✅ Message public dans le salon
+            try:
+                await interaction.channel.send(
+                    f"💰 Payout **{self.payout_name}** lancé par **{self.caller_name}**\n"
+                    f"Total : {total:,} • Réparations : {repairs:,}\n"
+                    f"Guilde : {guild_cut:,} • Net : {net:,} • Par membre : {per_member:,}"
+                )
+            except discord.Forbidden:
+                await interaction.followup.send(
+                    "⚠️ Je n’ai pas les permissions pour envoyer un message public dans ce salon.",
+                    ephemeral=True
+                )
+                return
 
-            conn = sqlite3.connect(DB_PATH)
-            c = conn.cursor()
-
-            # Enregistrement du payout
-            c.execute('''
-                INSERT INTO payouts (name, caller, total, repairs, guild_percent, guild_cut, net, per_member)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            ''', (
-                self.payout_name,
-                self.caller_name,
-                total,
-                repairs,
-                guild_pct,
-                guild_cut,
-                to_split,
-                per_member
-            ))
-
-            # Enregistrement des membres
-            for name in members_raw:
-                user = discord.utils.get(interaction.guild.members, name=name)
-                if user:
-                    c.execute("INSERT INTO payout_users (payout_name, user_id) VALUES (?, ?)", (self.payout_name, user.id))
-                    c.execute('''
-                        INSERT INTO user_balances (user_id, balance)
-                        VALUES (?, ?)
-                        ON CONFLICT(user_id) DO UPDATE SET balance = balance + ?
-                    ''', (user.id, per_member, per_member))
-
-            conn.commit()
-            conn.close()
-
-            # Confirmation privée
-            await interaction.response.send_message(
-                f"✅ Payout **{self.payout_name}** créé par **{self.caller_name}**.\n"
-                f"Total: {total}€, Réparations: {repairs}€, Net: {net:.2f}€\n"
-                f"Guilde ({guild_pct}%): {guild_cut:.2f}€ → À répartir : {to_split:.2f}€\n"
-                f"Part par membre ({member_count}) : **{per_member:.2f}€**",
-                ephemeral=True
-            )
-
-            # Annonce publique
-            await interaction.channel.send(
-                f"🎉 Le payout **{self.payout_name}** est terminé !\n"
-                f"• Caller : {self.caller_name}\n"
-                f"• Total : {total}€, Réparations : {repairs}€, Guilde : {guild_cut:.2f}€\n"
-                f"• À répartir : {to_split:.2f}€ entre {member_count} membres → **{per_member:.2f}€** chacun\n"
-                f"✅ Les balances des membres ont été mises à jour."
-            )
+            # ✅ Confirmation privée
+            if interaction.response.is_done():
+                await interaction.followup.send("✅ Payout enregistré avec succès.", ephemeral=True)
+            else:
+                await interaction.response.send_message("✅ Payout enregistré avec succès.", ephemeral=True)
 
         except Exception as e:
-            await interaction.response.send_message(f"❌ Erreur : {e}", ephemeral=True)
+            msg = f"❌ Erreur inattendue : {e}"
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
