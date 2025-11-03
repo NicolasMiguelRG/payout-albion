@@ -10,7 +10,7 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
 
         self.total = discord.ui.TextInput(label="Prix total", placeholder="Ex: 1 000 000", required=True)
         self.repairs = discord.ui.TextInput(label="Réparations", placeholder="Ex: 200 000", required=True)
-        self.members = discord.ui.TextInput(label="Membres", placeholder="Ex: 5", required=True)
+        self.members = discord.ui.TextInput(label="Membres (mentions séparées par virgule)", placeholder="@joueur1, @joueur2", required=True)
         self.guild = discord.ui.TextInput(label="Membre guilde ? (oui/non)", placeholder="oui", required=True)
         self.percent = discord.ui.TextInput(label="% pour la guilde", placeholder="Ex: 10", required=True)
 
@@ -24,15 +24,19 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
         try:
             total = int(self.total.value.replace(" ", ""))
             repairs = int(self.repairs.value.replace(" ", ""))
-            members = int(self.members.value)
-            is_guild = self.guild.value.lower() == "oui"
             percent = int(self.percent.value)
+            is_guild = self.guild.value.lower() == "oui"
+
+            # ✅ Traitement des membres
+            members_raw = self.members.value
+            members_list = [m.strip() for m in members_raw.split(",") if m.strip()]
+            members = len(members_list)
 
             guild_cut = int((total - repairs) * percent / 100) if is_guild else 0
             net = total - repairs - guild_cut
-            per_member = int(net / members)
+            per_member = int(net / members) if members > 0 else 0
 
-            # ✅ Connexion sécurisée à SQLite
+            # ✅ Insertion sécurisée dans SQLite
             try:
                 with sqlite3.connect("payouts.db") as conn:
                     c = conn.cursor()
@@ -50,7 +54,7 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
                         per_member
                     ))
                     conn.commit()
-            except sqlite3.IntegrityError as e:
+            except sqlite3.IntegrityError:
                 msg = f"❌ Erreur : le nom '{self.payout_name}' existe déjà."
                 if interaction.response.is_done():
                     await interaction.followup.send(msg, ephemeral=True)
@@ -67,10 +71,12 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
 
             # ✅ Message public dans le salon
             try:
+                mentions = ", ".join(members_list)
                 await interaction.channel.send(
-                    f"💰 Payout **{self.payout_name}** lancé par **{self.caller_name}**\n"
-                    f"Total : {total:,} • Réparations : {repairs:,}\n"
-                    f"Guilde : {guild_cut:,} • Net : {net:,} • Par membre : {per_member:,}"
+                    f"💰 **Payout {self.payout_name}** lancé par **{self.caller_name}**\n"
+                    f"👥 Membres : {mentions}\n"
+                    f"💸 Total : {total:,} • Réparations : {repairs:,}\n"
+                    f"🏰 Guilde : {guild_cut:,} • Net : {net:,} • Par membre : {per_member:,}"
                 )
             except discord.Forbidden:
                 await interaction.followup.send(
