@@ -17,5 +17,20 @@ def setup_balance_commands(bot):
             await ctx.send("💸 Aucun solde enregistré pour toi.")
 
     @bot.command(name="bl")
-    async def balance_short(ctx):
-        await balance(ctx)
+    async def balance_leaderboard(ctx):
+        with sqlite3.connect(DB_PATH) as conn:
+            c = conn.cursor()
+            c.execute("SELECT user_id, balance FROM user_balances ORDER BY balance DESC")
+            rows = c.fetchall()
+
+        if not rows:
+            await ctx.send("📭 Aucun solde enregistré.")
+            return
+
+        message = "**🏆 Classement des balances :**\n"
+        for i, (user_id, balance) in enumerate(rows, start=1):
+            member = ctx.guild.get_member(user_id)
+            name = member.display_name if member else f"<ID:{user_id}>"
+            message += f"{i}. **{name}** → {balance:,} pièces\n"
+
+        await ctx.send(message)
