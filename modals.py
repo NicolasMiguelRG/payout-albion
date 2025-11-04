@@ -27,7 +27,6 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
             percent = int(self.percent.value)
             is_guild = self.guild.value.lower() == "oui"
 
-            # ✅ Traitement des membres
             members_raw = self.members.value
             members_list = [m.strip() for m in members_raw.split(",") if m.strip()]
             members = len(members_list)
@@ -36,7 +35,7 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
             net = total - repairs - guild_cut
             per_member = int(net / members) if members > 0 else 0
 
-            # ✅ Insertion sécurisée dans SQLite
+            # Enregistrement du payout
             try:
                 with sqlite3.connect("payouts.db") as conn:
                     c = conn.cursor()
@@ -69,7 +68,31 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
                     await interaction.response.send_message(msg, ephemeral=True)
                 return
 
-            # ✅ Message public dans le salon
+            # Distribution des parts aux membres
+            try:
+                with sqlite3.connect("payouts.db") as conn:
+                    c = conn.cursor()
+                    for mention in members_list:
+                        clean_name = mention.replace("@", "").strip()
+                        member = discord.utils.get(interaction.guild.members, name=clean_name)
+                        if member:
+                            user_id = member.id
+                            c.execute('''
+                                INSERT INTO user_balances (user_id, balance)
+                                VALUES (?, ?)
+                                ON CONFLICT(user_id) DO UPDATE SET balance = balance + ?
+                            ''', (user_id, per_member, per_member))
+
+                            c.execute('''
+                                INSERT INTO payout_users (payout_name, user_id)
+                                VALUES (?, ?)
+                            ''', (self.payout_name, user_id))
+                    conn.commit()
+            except Exception as e:
+                await interaction.followup.send(f"❌ Erreur lors de la distribution : {e}", ephemeral=True)
+                return
+
+            # Message public
             try:
                 mentions = ", ".join(members_list)
                 await interaction.channel.send(
@@ -85,11 +108,11 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
                 )
                 return
 
-            # ✅ Confirmation privée
+            # Confirmation privée
             if interaction.response.is_done():
-                await interaction.followup.send("✅ Payout enregistré avec succès.", ephemeral=True)
+                await interaction.followup.send("✅ Payout enregistré et distribué avec succès.", ephemeral=True)
             else:
-                await interaction.response.send_message("✅ Payout enregistré avec succès.", ephemeral=True)
+                await interaction.response.send_message("✅ Payout enregistré et distribué avec succès.", ephemeral=True)
 
         except Exception as e:
             msg = f"❌ Erreur inattendue : {e}"
