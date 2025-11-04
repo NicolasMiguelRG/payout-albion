@@ -1,5 +1,6 @@
 import discord
 import sqlite3
+from config import DB_PATH
 
 class PayoutView(discord.ui.View):
     def __init__(self, caller_name: str):
@@ -10,10 +11,13 @@ class PayoutView(discord.ui.View):
     @discord.ui.select(cls=discord.ui.UserSelect, placeholder="👥 Sélectionne les membres", min_values=1, max_values=10)
     async def select_members(self, interaction: discord.Interaction, select: discord.ui.UserSelect):
         self.selected_members = select.values
-        await interaction.response.send_message("✅ Membres sélectionnés.", ephemeral=True)
+        await interaction.response.defer(ephemeral=True)
 
     @discord.ui.button(label="Valider le payout", style=discord.ButtonStyle.green)
     async def validate(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if not self.selected_members:
+            await interaction.response.send_message("⚠️ Sélectionne au moins un membre avant de valider.", ephemeral=True)
+            return
         modal = PayoutDetailsModal(self.caller_name, self.selected_members)
         await interaction.response.send_modal(modal)
 
@@ -48,7 +52,7 @@ class PayoutDetailsModal(discord.ui.Modal, title="Détails du payout"):
 
             payout_name = f"Payout-{interaction.id}"
 
-            with sqlite3.connect("payouts.db") as conn:
+            with sqlite3.connect(DB_PATH) as conn:
                 c = conn.cursor()
                 c.execute('''
                     INSERT INTO payouts (name, caller, total, repairs, guild_percent, guild_cut, net, per_member)
