@@ -6,9 +6,12 @@ from commands.payer_command import payer
 from admin_commands import setup_admin_commands
 from balance_commands import setup_balance_commands
 
+
+GUILD_ID = 1250974626197278771  # ← à personnaliser
+
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = True  # Nécessaire pour accéder aux membres du serveur
+intents.members = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
@@ -16,8 +19,10 @@ bot = commands.Bot(command_prefix="!", intents=intents)
 async def on_ready():
     print(f"✅ Connecté en tant que {bot.user}")
     try:
-        synced = await bot.tree.sync()
-        print(f"📦 Commandes slash synchronisées : {len(synced)}")
+        guild = discord.Object(id=GUILD_ID)
+        bot.tree.copy_global_to(guild=guild)
+        synced = await bot.tree.sync(guild=guild)
+        print(f"📦 Commandes slash synchronisées localement : {len(synced)}")
     except Exception as e:
         print(f"❌ Erreur de synchronisation des commandes : {e}")
 
