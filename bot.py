@@ -6,8 +6,8 @@ from commands.payer_command import payer
 from admin_commands import setup_admin_commands
 from balance_commands import setup_balance_commands
 
-
-GUILD_ID = 1250974626197278771  # ← à personnaliser
+# Remplace par l'ID de ton serveur Discord
+GUILD_ID = 123456789012345678  # ← à personnaliser
 
 intents = discord.Intents.default()
 intents.message_content = True
