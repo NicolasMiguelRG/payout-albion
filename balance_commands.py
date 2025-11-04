@@ -23,6 +23,10 @@ def setup_balance_commands(bot):
             c.execute("SELECT user_id, balance FROM user_balances ORDER BY balance DESC")
             rows = c.fetchall()
 
+            c.execute("SELECT SUM(balance) FROM user_balances")
+            total_row = c.fetchone()
+            total = total_row[0] if total_row and total_row[0] else 0
+
         if not rows:
             await ctx.send("📭 Aucun solde enregistré.")
             return
@@ -33,4 +37,5 @@ def setup_balance_commands(bot):
             name = member.display_name if member else f"<ID:{user_id}>"
             message += f"{i}. **{name}** → {balance:,} pièces\n"
 
+        message += f"\n**💸 Pièces en circulation :** {total:,} pièces"
         await ctx.send(message)
