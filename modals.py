@@ -29,8 +29,16 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
 
             members_raw = self.members.value
             members_list = [m.strip() for m in members_raw.split(",") if m.strip()]
-            members = len(members_list)
+            valid_members = []
 
+            for mention in members_list:
+                if mention.startswith("@"):
+                    name = mention[1:].strip()
+                    member = discord.utils.get(interaction.guild.members, name=name)
+                    if member:
+                        valid_members.append(member)
+
+            members = len(valid_members)
             guild_cut = int((total - repairs) * percent / 100) if is_guild else 0
             net = total - repairs - guild_cut
             per_member = int(net / members) if members > 0 else 0
@@ -68,25 +76,22 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
                     await interaction.response.send_message(msg, ephemeral=True)
                 return
 
-            # Distribution des parts aux membres
+            # Distribution des parts aux membres valides
             try:
                 with sqlite3.connect("payouts.db") as conn:
                     c = conn.cursor()
-                    for mention in members_list:
-                        clean_name = mention.replace("@", "").strip()
-                        member = discord.utils.get(interaction.guild.members, name=clean_name)
-                        if member:
-                            user_id = member.id
-                            c.execute('''
-                                INSERT INTO user_balances (user_id, balance)
-                                VALUES (?, ?)
-                                ON CONFLICT(user_id) DO UPDATE SET balance = balance + ?
-                            ''', (user_id, per_member, per_member))
+                    for member in valid_members:
+                        user_id = member.id
+                        c.execute('''
+                            INSERT INTO user_balances (user_id, balance)
+                            VALUES (?, ?)
+                            ON CONFLICT(user_id) DO UPDATE SET balance = balance + ?
+                        ''', (user_id, per_member, per_member))
 
-                            c.execute('''
-                                INSERT INTO payout_users (payout_name, user_id)
-                                VALUES (?, ?)
-                            ''', (self.payout_name, user_id))
+                        c.execute('''
+                            INSERT INTO payout_users (payout_name, user_id)
+                            VALUES (?, ?)
+                        ''', (self.payout_name, user_id))
                     conn.commit()
             except Exception as e:
                 await interaction.followup.send(f"❌ Erreur lors de la distribution : {e}", ephemeral=True)
@@ -94,7 +99,7 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
 
             # Message public
             try:
-                mentions = ", ".join(members_list)
+                mentions = ", ".join([f"@{m.name}" for m in valid_members])
                 await interaction.channel.send(
                     f"💰 **Payout {self.payout_name}** lancé par **{self.caller_name}**\n"
                     f"👥 Membres : {mentions}\n"
