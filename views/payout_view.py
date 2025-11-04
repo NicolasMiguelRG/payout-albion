@@ -13,7 +13,6 @@ class PayoutView(discord.ui.View):
             await interaction.response.send_message("⚠️ Aucun membre sélectionné.", ephemeral=True)
             return
 
-        # Exemple de résumé avec le nom du payout et le créateur
         message = f"✅ **{self.nom}** validé par {self.creator.mention}\n\n"
         message += "**Membres sélectionnés :**\n"
         for member in self.selected_members:
@@ -25,7 +24,7 @@ class PayoutView(discord.ui.View):
         placeholder="Sélectionne les membres à inclure",
         min_values=1,
         max_values=25,
-        options=[]  # Rempli dynamiquement
+        options=[]  # À remplir dynamiquement si nécessaire
     )
     async def select_members(self, interaction: discord.Interaction, select: discord.ui.Select):
         self.selected_members = [interaction.guild.get_member(int(user_id)) for user_id in select.values]
