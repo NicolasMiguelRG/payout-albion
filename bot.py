@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from config import TOKEN
 from commands.payout_command import payout
+from commands.payer_command import payer
 from admin_commands import setup_admin_commands
 from balance_commands import setup_balance_commands
 
@@ -20,13 +21,12 @@ async def on_ready():
     except Exception as e:
         print(f"❌ Erreur de synchronisation des commandes : {e}")
 
-# 📥 Ajout de la commande slash /payout
+# 📥 Commandes slash
 bot.tree.add_command(payout)
+bot.tree.add_command(payer)
 
-# 🛡️ Commandes admin classiques (!validate_payout, !delete_payout, !list_payouts)
+# 🛡️ Commandes classiques
 setup_admin_commands(bot)
-
-# 💰 Commandes de solde (!bal, !bl)
 setup_balance_commands(bot)
 
 # 🔐 Vérification du token
