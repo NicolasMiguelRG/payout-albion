@@ -34,7 +34,10 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
             for mention in members_list:
                 if mention.startswith("@"):
                     name = mention[1:].strip()
-                    member = discord.utils.get(interaction.guild.members, name=name)
+                    member = discord.utils.find(
+                        lambda m: m.display_name == name or m.name == name,
+                        interaction.guild.members
+                    )
                     if member:
                         valid_members.append(member)
 
@@ -99,7 +102,7 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
 
             # Message public
             try:
-                mentions = ", ".join([f"@{m.name}" for m in valid_members])
+                mentions = ", ".join([f"@{m.display_name}" for m in valid_members])
                 await interaction.channel.send(
                     f"💰 **Payout {self.payout_name}** lancé par **{self.caller_name}**\n"
                     f"👥 Membres : {mentions}\n"
