@@ -1,5 +1,6 @@
 import discord
 import sqlite3
+import re
 
 class PayoutModal(discord.ui.Modal, title="Créer un payout"):
 
@@ -10,7 +11,7 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
 
         self.total = discord.ui.TextInput(label="Prix total", placeholder="Ex: 1 000 000", required=True)
         self.repairs = discord.ui.TextInput(label="Réparations", placeholder="Ex: 200 000", required=True)
-        self.members = discord.ui.TextInput(label="Membres (mentions séparées par virgule)", placeholder="@joueur1, @joueur2", required=True)
+        self.members = discord.ui.TextInput(label="Membres (mentions Discord)", placeholder="@joueur1, @joueur2", required=True)
         self.guild = discord.ui.TextInput(label="Part de guilde ? (oui/non)", placeholder="oui", required=True)
         self.percent = discord.ui.TextInput(label="% vente Tab ! (FDP OKIMI)", placeholder="Ex: 10", required=True)
 
@@ -27,26 +28,16 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
             percent = int(self.percent.value)
             is_guild = self.guild.value.lower() == "oui"
 
-            members_raw = self.members.value
-            members_list = [m.strip() for m in members_raw.split(",") if m.strip()]
-            valid_members = []
-
-            for mention in members_list:
-                if mention.startswith("@"):
-                    name = mention[1:].strip()
-                    member = discord.utils.find(
-                        lambda m: m.display_name == name or m.name == name,
-                        interaction.guild.members
-                    )
-                    if member:
-                        valid_members.append(member)
+            # 🔍 Extraction des IDs depuis les mentions Discord
+            user_ids = re.findall(r"<@!?(\d+)>", self.members.value)
+            valid_members = [interaction.guild.get_member(int(uid)) for uid in user_ids if interaction.guild.get_member(int(uid))]
 
             members = len(valid_members)
             guild_cut = int((total - repairs) * percent / 100) if is_guild else 0
             net = total - repairs - guild_cut
             per_member = int(net / members) if members > 0 else 0
 
-            # Enregistrement du payout
+            # 💾 Enregistrement du payout
             try:
                 with sqlite3.connect("payouts.db") as conn:
                     c = conn.cursor()
@@ -71,15 +62,8 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
                 else:
                     await interaction.response.send_message(msg, ephemeral=True)
                 return
-            except sqlite3.OperationalError as e:
-                msg = f"❌ Erreur base de données : {e}"
-                if interaction.response.is_done():
-                    await interaction.followup.send(msg, ephemeral=True)
-                else:
-                    await interaction.response.send_message(msg, ephemeral=True)
-                return
 
-            # Distribution des parts aux membres valides
+            # 💸 Distribution des parts
             try:
                 with sqlite3.connect("payouts.db") as conn:
                     c = conn.cursor()
@@ -100,9 +84,9 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
                 await interaction.followup.send(f"❌ Erreur lors de la distribution : {e}", ephemeral=True)
                 return
 
-            # Message public
+            # 📢 Message public
             try:
-                mentions = ", ".join([f"@{m.display_name}" for m in valid_members])
+                mentions = ", ".join([member.mention for member in valid_members])
                 await interaction.channel.send(
                     f"💰 **Payout {self.payout_name}** lancé par **{self.caller_name}**\n"
                     f"👥 Membres : {mentions}\n"
@@ -116,7 +100,7 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
                 )
                 return
 
-            # Confirmation privée
+            # ✅ Confirmation privée
             if interaction.response.is_done():
                 await interaction.followup.send("✅ Payout enregistré et distribué avec succès.", ephemeral=True)
             else:
