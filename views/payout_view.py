@@ -6,10 +6,6 @@ class PayoutView(discord.ui.View):
         super().__init__(timeout=300)
         self.caller_name = caller_name
         self.selected_members = []
-        self.total = None
-        self.repairs = None
-        self.guild = None
-        self.percent = None
 
     @discord.ui.select(cls=discord.ui.UserSelect, placeholder="👥 Sélectionne les membres", min_values=1, max_values=10)
     async def select_members(self, interaction: discord.Interaction, select: discord.ui.UserSelect):

@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-from commands.payout_command import PayoutCommand
+from commands.payout_command import payout
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -18,7 +18,6 @@ async def on_ready():
         print(f"❌ Erreur de synchronisation : {e}")
 
 # 📥 Ajout de la commande /payout
-bot.tree.add_command(PayoutCommand(bot).payout)
+bot.tree.add_command(payout)
 
-# 🟢 Démarrage du bot
 bot.run("TON_TOKEN_ICI")
