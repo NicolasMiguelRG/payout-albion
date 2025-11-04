@@ -1,26 +1,25 @@
 import discord
 from discord.ext import commands
-from config import TOKEN
-from database import init_db
-from text_commands import setup_text_commands
-from admin_commands import setup_admin_commands
-from payment_commands import setup_payment_commands
-from slash_commands import setup_slash_commands
+from commands.payout_command import PayoutCommand
 
 intents = discord.Intents.default()
 intents.message_content = True
-intents.members = True
+intents.members = True  # Nécessaire pour accéder aux membres du serveur
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+tree = discord.app_commands.CommandTree(bot)
 
 @bot.event
 async def on_ready():
-    init_db()  # Initialise la base de données
-    setup_text_commands(bot)  # Commandes textuelles (!bal, !bl, etc.)
-    setup_admin_commands(bot)  # Commandes admin (!validate_payout, etc.)
-    setup_payment_commands(bot.tree)  # Commandes slash liées aux paiements
-    setup_slash_commands(bot.tree)  # Commande slash /payout
-    await bot.tree.sync()  # Synchronise les commandes slash avec Discord
     print(f"✅ Connecté en tant que {bot.user}")
+    try:
+        synced = await tree.sync()
+        print(f"📦 Commandes slash synchronisées : {len(synced)}")
+    except Exception as e:
+        print(f"❌ Erreur de synchronisation : {e}")
 
-bot.run(TOKEN)
+# 📥 Ajout de la commande /payout
+tree.add_command(PayoutCommand(bot).payout)
+
+# 🟢 Démarrage du bot
+bot.run("TON_TOKEN_ICI")
