@@ -20,4 +20,4 @@ async def on_ready():
 # 📥 Ajout de la commande /payout
 bot.tree.add_command(payout)
 
-bot.run("TON_TOKEN_ICI")
+bot.run(TOKEN)
