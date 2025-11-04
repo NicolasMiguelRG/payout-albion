@@ -19,7 +19,6 @@ def setup_text_commands(bot):
 
     # 📊 Commande !bl : voir toutes les balances triées + stats globales
     @bot.command()
-    @commands.has_role("Admin")
     async def bl(ctx):
         conn = sqlite3.connect(DB_PATH)
         c = conn.cursor()

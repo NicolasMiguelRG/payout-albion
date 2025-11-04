@@ -11,8 +11,8 @@ class PayoutModal(discord.ui.Modal, title="Créer un payout"):
         self.total = discord.ui.TextInput(label="Prix total", placeholder="Ex: 1 000 000", required=True)
         self.repairs = discord.ui.TextInput(label="Réparations", placeholder="Ex: 200 000", required=True)
         self.members = discord.ui.TextInput(label="Membres (mentions séparées par virgule)", placeholder="@joueur1, @joueur2", required=True)
-        self.guild = discord.ui.TextInput(label="Membre guilde ? (oui/non)", placeholder="oui", required=True)
-        self.percent = discord.ui.TextInput(label="% pour la guilde", placeholder="Ex: 10", required=True)
+        self.guild = discord.ui.TextInput(label="Part de guilde ? (oui/non)", placeholder="oui", required=True)
+        self.percent = discord.ui.TextInput(label="% vente Tab ! (FDP OKIMI)", placeholder="Ex: 10", required=True)
 
         self.add_item(self.total)
         self.add_item(self.repairs)
